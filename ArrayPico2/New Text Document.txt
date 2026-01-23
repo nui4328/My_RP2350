@@ -1,0 +1,8 @@
+bord_MyPico2_v1/
+├── bord_MyPico2_v1.h
+├── bord_MyPico2_v1.cpp
+├── examples/
+│   └── BasicUsage/
+│       └── BasicUsage.ino
+├── keywords.txt
+└── library.properties

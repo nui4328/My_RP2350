@@ -1,0 +1,23 @@
+bord_MyPico2_v1	KEYWORD1
+begin	KEYWORD2
+run	KEYWORD2
+Motor	KEYWORD2
+ServoAttach	KEYWORD2
+ServoWrite	KEYWORD2
+ServoDetach	KEYWORD2
+adcRead	KEYWORD2
+md_adc	KEYWORD2
+
+
+******------------*******
+  void begin();
+  void run();
+
+  void Motor(int leftSpeed, int rightSpeed);
+
+  // Servo Control (พิน 16, 17, 18)
+  void ServoAttach(uint8_t pin);        // ติดตั้ง Servo บนพิน
+  void ServoWrite(uint8_t pin, int degree);  // ตั้งองศา 0-180
+  void ServoDetach(uint8_t pin);        // ถอด Servo
+  uint16_t adcRead(uint8_t channel);
+  uint16_t md_adc(uint8_t channel);
