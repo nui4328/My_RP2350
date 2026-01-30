@@ -4767,11 +4767,11 @@ void fline4sensor(int spl, int spr, float kp, String distance, char nfc, char sp
             }
             Motor(-(slmotor), -(srmotor));
             delay(break_ff);
-            for (int i = 0; i <= sensor_f; i++) {
+            for (int i = 2; i <= sensor_f; i++) {
                 if(sensor_f >= 2)
                   {
                     do {Motor((flml * power) / 100, (flmr * power) / 100);
-                        delayMicroseconds(50);} while (read_sensorA(i+2) < md_sensorA(i+2) - 50);
+                        delayMicroseconds(50);} while (read_sensorA(i) < md_sensorA(i) - 50);
                   }
                 do {
                     Motor((flml * power) / 100, (flmr * power) / 100);
@@ -4816,12 +4816,12 @@ void fline4sensor(int spl, int spr, float kp, String distance, char nfc, char sp
             delay(delay_f);
             Motor(-slmotor, -srmotor);
             delay(break_ff);
-            for (int i = 7; i >= sensor_f; i--) {
+            for (int i = 5; i >= sensor_f; i--) {
                if(sensor_f <= 5)
                   {
                     do {Motor((frml * power) / 100, (frmr * power) / 100);
                     delayMicroseconds(50);
-                    } while (read_sensorA(i-2) < md_sensorA(i-2) - 50); 
+                    } while (read_sensorA(i) < md_sensorA(i) - 50); 
                   }
                 do {
                     Motor((frml * power) / 100, (frmr * power) / 100);
