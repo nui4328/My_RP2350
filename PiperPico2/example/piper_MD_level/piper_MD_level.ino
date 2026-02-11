@@ -70,6 +70,7 @@ void setup() {
     move_fw(30, 1.2, 80, "line");
     delay(200);
     set_f(2);
+    open_servo();  //  วางกล่อง
     move_bw(30, 1.2, 80, "line");
     turnGyro(60, 90);
     set_b(2);
