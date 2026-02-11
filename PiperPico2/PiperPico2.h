@@ -11,12 +11,18 @@
 
 #define NUM_SENSORS 10
 
+#define PCA9685_MODE1      0x00
+#define PCA9685_PRESCALE   0xFE
+
 class MyPCA9685 {
 public:
     MyPCA9685(uint8_t addr = 0x40);
     void begin();
     void setPWM(uint8_t channel, uint16_t on, uint16_t off);
     void setPin(uint8_t channel, uint16_t val, bool invert = false);
+    
+    // เพิ่มฟังก์ชันนี้เพื่อ set ความถี่ PWM (สำคัญสำหรับเซอร์โว)
+    void setPWMFreq(uint16_t freq);
 
 private:
     uint8_t _addr;
@@ -58,6 +64,9 @@ public:
     void resetEncoders();
     float knopRead();
 
+    // เพิ่ม getter สำหรับเข้าถึง _pwm จากภายนอกถ้าต้องการทดสอบ (optional)
+    MyPCA9685& getPWM() { return _pwm; }
+
 private:
     MyPCA9685 _pwm;
     Adafruit_SSD1306 _display;
@@ -76,8 +85,9 @@ private:
     static constexpr uint8_t MUX_S3 = 14;
     static constexpr uint8_t MUX_Z  = 28;
 
-    static constexpr uint16_t SERVO_MIN = 130;
-    static constexpr uint16_t SERVO_MAX = 620;
+    // ค่า servo ที่ปรับแล้ว (150-600 เป็นค่าดีสำหรับส่วนใหญ่)
+    static constexpr uint16_t SERVO_MIN = 135;
+    static constexpr uint16_t SERVO_MAX = 580;
 
     static constexpr uint16_t PWM_MAX   = 65535;
     static constexpr float    SPEED_SCALE = PWM_MAX / 100.0f;
@@ -91,13 +101,14 @@ private:
     static constexpr uint8_t  PWM_PIN_C = 7;
     static constexpr uint8_t  PWM_PIN_D = 6;
 
+    // SERVO_CHANNELS[0] = 15 → เช็คว่าเซอร์โวต่อ channel 15 บน PCA9685 จริง
     static constexpr uint8_t SERVO_CHANNELS[5] = {15, 14, 13, 12, 11};
 
     uint8_t getMotorIn1(char id);
     uint8_t getMotorIn2(char id);
 
     void initPins();
-    void initPWM();
+    void initPWM();  // จะเรียก setPWMFreq(50) ตรงนี้
     void initOLED();
     void eepromWrite(uint16_t ee_addr, const uint8_t* data, uint8_t len);
     void eepromRead(uint16_t ee_addr, uint8_t* data, uint8_t len);
