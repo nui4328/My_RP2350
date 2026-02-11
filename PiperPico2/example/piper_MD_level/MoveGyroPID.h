@@ -343,5 +343,11 @@ void moveForward(int speed, float distance_cm) {
 void moveBackward(int speed, float distance_cm) {
   moveStraight(speed, distance_cm, false);
 }
+void open_servo()
+  {
+    robot.setServo(0, 160); delay(200);
+    robot.setServo(0, 60); delay(500);
+    robot.setServo(0, 160); delay(200);
+  }
 
 #endif  // TURNGYROPID_H
