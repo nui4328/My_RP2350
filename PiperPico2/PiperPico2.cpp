@@ -25,15 +25,30 @@ void MyPCA9685::begin() {
     write8(PCA9685_MODE1, 0x00);
     delay(10);
 
-    uint8_t prescale = 30;
+    // prescale เดิมถูกแทนที่ด้วย setPWMFreq(50) ใน initPWM แล้ว
+    // ถ้าต้องการค่า default สามารถคงไว้ แต่แนะนำใช้ setPWMFreq
+}
+
+void MyPCA9685::setPWMFreq(uint16_t freq) {
+    // คำนวณ prescale สำหรับ internal oscillator 25 MHz
+    // freq ควรอยู่ระหว่าง 40-1000 Hz (สำหรับ servo ใช้ 50-60 Hz)
+    if (freq < 40) freq = 40;
+    if (freq > 1000) freq = 1000;
+
+    float prescaleval = 25000000.0f;  // 25 MHz
+    prescaleval /= 4096.0f;
+    prescaleval /= (float)freq;
+    prescaleval -= 1.0f;
+    uint8_t prescale = (uint8_t)(prescaleval + 0.5f);  // round to nearest
 
     uint8_t oldmode = read8(PCA9685_MODE1);
-    write8(PCA9685_MODE1, (oldmode & 0x7F) | 0x10);
+    write8(PCA9685_MODE1, (oldmode & 0x7F) | 0x10);  // sleep mode
     delay(5);
     write8(PCA9685_PRESCALE, prescale);
     delay(5);
-    write8(PCA9685_MODE1, oldmode | 0xA1);
+    write8(PCA9685_MODE1, oldmode);                  // wake up this way (datasheet recommended)
     delay(5);
+    write8(PCA9685_MODE1, oldmode | 0xA1);           // restart + enable auto-increment
 }
 
 void MyPCA9685::setPWM(uint8_t channel, uint16_t on, uint16_t off) {
@@ -69,13 +84,12 @@ PiperPico2::PiperPico2()
 }
 
 bool PiperPico2::begin() {
-   Serial.begin(115200);
-  // หน่วงเล็กน้อยหลังเริ่ม I2C เพื่อให้ bus มีความเสถียร
-    delay(1800);  
+    Serial.begin(115200);
+    delay(1800);  // หน่วงเพื่อ stability ของ I2C bus
     Wire.setSDA(4);
     Wire.setSCL(5);
     Wire.begin();
-    delay(50);   
+    delay(50);
 
     initPins();
     initPWM();
@@ -112,11 +126,18 @@ void PiperPico2::initPins() {
 void PiperPico2::initPWM() {
     _pwm.begin();
 
+    // สำคัญมาก: ตั้งความถี่ PWM เป็น 50 Hz สำหรับเซอร์โว (มาตรฐาน)
+    // ถ้า servo ของคุณชอบ 60 Hz สามารถเปลี่ยนเป็น 60 ได้
+    _pwm.setPWMFreq(50);
+
     for (uint8_t i = 0; i < 5; i++) {
         uint8_t ch = SERVO_CHANNELS[i];
-        _pwm.setPWM(ch, 0, 0);
+        _pwm.setPWM(ch, 0, 0);  // ปิด servo เริ่มต้น (หรือ set เป็นกลาง: map(90,0,180,SERVO_MIN,SERVO_MAX))
     }
 }
+
+// ส่วนที่เหลือเหมือนเดิม (initOLED, motor, setServo, playTone, adcRead, calibrate ฯลฯ)
+// คุณสามารถ copy ส่วนเหล่านี้จากโค้ดเดิมของคุณมา paste ต่อจากนี้
 
 void PiperPico2::initOLED() {
     if (!_display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
