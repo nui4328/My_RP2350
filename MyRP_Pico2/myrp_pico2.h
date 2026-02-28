@@ -2,6 +2,8 @@
 #define _myrp_pico2_
 
 #include <Wire.h>
+#include "BatteryMonitor.h"
+BatteryMonitor bat;
 #include  <my_GYRO1600.h>
 
 #include  <my_MCP3008s.h>
@@ -155,6 +157,7 @@ void setup_robot()
   {
     Serial.begin(9600);
     Wire.begin(); 
+    bat.begin();
     analogReadResolution(12);  
        
    // resetAngles();
@@ -515,7 +518,8 @@ void sw()
     if(ADC_i2c() < 4500 && ADC_i2c() > 3500)
       {
         while(1)
-          {       
+          { 
+            bat.update();      
             if(digitalRead(3) == 0)
                 {
                   digitalWrite(LED_BUILTIN, 1);
@@ -607,6 +611,7 @@ void sw()
       {
         while(1)
           {
+            bat.update();
             if(digitalRead(3) == 0)
               {
                 digitalWrite(LED_BUILTIN, 1);
