@@ -40,14 +40,14 @@ void BatteryMonitor::begin() {
   Wire.write(ADC_CONFIG & 0xFF);
   if (Wire.endTransmission() != 0) {
     Serial.println("ERROR: ADS1115 config failed!");
-    while (true);
+    //while (true);
   }
 
   delay(50);
   Wire.beginTransmission(ADS_ADDR);
   if (Wire.endTransmission() != 0) {
     Serial.println("ERROR: ADS1115 not found!");
-    while (true);
+    //while (true);
   }
 
   writePCF(0x00);  // ดับ LED ทั้งหมด
@@ -179,4 +179,5 @@ void BatteryMonitor::writePCF(uint8_t value) {
   Wire.beginTransmission(PCF_ADDR);
   Wire.write(value);
   Wire.endTransmission();
+
 }
