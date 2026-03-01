@@ -181,7 +181,7 @@ void my_BMI160::readAccelGyro(int16_t *ax, int16_t *ay, int16_t *az, int16_t *gx
   }
 }
 bool my_BMI160::calibrateGyro() {
-  const int CALIBRATION_SAMPLES = 1000;
+  const int CALIBRATION_SAMPLES = 500;
   float sumX = 0.0f, sumY = 0.0f, sumZ = 0.0f;
   float sumAX = 0.0f, sumAY = 0.0f, sumAZ = 0.0f;
   float varX = 0.0f, varY = 0.0f, varZ = 0.0f;
@@ -222,7 +222,7 @@ bool my_BMI160::calibrateGyro() {
   return true;
 }
 bool my_BMI160::calibrate() {
-  const int CALIBRATION_SAMPLES = 1000;
+  const int CALIBRATION_SAMPLES = 500;
   float sumX = 0.0f, sumY = 0.0f, sumZ = 0.0f;
   float sumAX = 0.0f, sumAY = 0.0f, sumAZ = 0.0f;
   float varX = 0.0f, varY = 0.0f, varZ = 0.0f;
