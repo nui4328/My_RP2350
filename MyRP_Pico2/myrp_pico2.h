@@ -4,14 +4,14 @@
 #include <Wire.h>
 #include "BatteryMonitor.h"
 BatteryMonitor bat;
-#include  <my_GYRO1600.h>
+#include  <my_BMI160.h>
 
 #include  <my_MCP3008s.h>
 my_MCP3008s adc;
 #include  <EncoderLibrarys.h>
 EncoderLibrarys encoder(18, 22, 12, 11);
 // กำหนดพินควบคุมมอเตอร์
-my_GYRO1600 my; // สร้างอ็อบเจ็กต์ด้วยที่อยู่เริ่มต้น (0x69)
+my_BMI160 my; // สร้างอ็อบเจ็กต์ด้วยที่อยู่เริ่มต้น (0x69)
 
 
 #define PWMA 19     // PWM ซ้าย
@@ -3318,7 +3318,7 @@ bool gyroOK(float stable_threshold = 2.0, int samples = 15)
 void place_left_in(int speed, int degree, int offset)
 {
     my.resetAngles();  // รีเซ็ตมุมทั้งหมด
-    my.reCalibrateGyro();         // calibrate offset ใหม่ (เร็ว ~150 ms)
+    //my.reCalibrateGyro();         // calibrate offset ใหม่ (เร็ว ~150 ms)
            // รีเซ็ต bias และ low-pass filter สนิท → ไม่ลอยแน่นอน!
     my.resetAngles();  // รีเซ็ตมุมทั้งหมด
     delay(50);
@@ -3416,7 +3416,7 @@ void place_left_in(int speed, int degree, int offset)
 void place_left_out(int speed, int degree, int offset) 
 {
     my.resetAngles();  // รีเซ็ตมุมทั้งหมด
-    my.reCalibrateGyro();         // calibrate offset ใหม่ (เร็ว ~150 ms)
+    //my.reCalibrateGyro();         // calibrate offset ใหม่ (เร็ว ~150 ms)
            // รีเซ็ต bias และ low-pass filter สนิท → ไม่ลอยแน่นอน!
     my.resetAngles();  // รีเซ็ตมุมทั้งหมด
     delay(50);
@@ -3514,7 +3514,7 @@ void place_left_out(int speed, int degree, int offset)
 void place_right_in(int speed, int degree, int offset) 
   {
      my.resetAngles();  // รีเซ็ตมุมทั้งหมด
-    my.reCalibrateGyro();         // calibrate offset ใหม่ (เร็ว ~150 ms)
+    //my.reCalibrateGyro();         // calibrate offset ใหม่ (เร็ว ~150 ms)
            // รีเซ็ต bias และ low-pass filter สนิท → ไม่ลอยแน่นอน!
     my.resetAngles();  // รีเซ็ตมุมทั้งหมด
     delay(50);
@@ -3613,7 +3613,7 @@ void place_right_in(int speed, int degree, int offset)
 void place_right_out(int speed, int degree, int offset) 
   {
      my.resetAngles();  // รีเซ็ตมุมทั้งหมด
-    my.reCalibrateGyro();         // calibrate offset ใหม่ (เร็ว ~150 ms)
+    //my.reCalibrateGyro();         // calibrate offset ใหม่ (เร็ว ~150 ms)
            // รีเซ็ต bias และ low-pass filter สนิท → ไม่ลอยแน่นอน!
     my.resetAngles();  // รีเซ็ตมุมทั้งหมด
     delay(50);
@@ -3714,7 +3714,7 @@ void place_right_out(int speed, int degree, int offset)
 void rotate_right(int speed, int degree, int offset) 
   {
        my.resetAngles();  // รีเซ็ตมุมทั้งหมด
-    my.reCalibrateGyro();         // calibrate offset ใหม่ (เร็ว ~150 ms)
+    //my.reCalibrateGyro();         // calibrate offset ใหม่ (เร็ว ~150 ms)
            // รีเซ็ต bias และ low-pass filter สนิท → ไม่ลอยแน่นอน!
     my.resetAngles();  // รีเซ็ตมุมทั้งหมด
         // คำนวณค่ามุมเริ่มต้น
@@ -3800,7 +3800,7 @@ void rotate_right(int speed, int degree, int offset)
 void rotate_left(int speed, int degree, int offset) 
   {
        my.resetAngles();  // รีเซ็ตมุมทั้งหมด
-    my.reCalibrateGyro();         // calibrate offset ใหม่ (เร็ว ~150 ms)
+    //my.reCalibrateGyro();         // calibrate offset ใหม่ (เร็ว ~150 ms)
            // รีเซ็ต bias และ low-pass filter สนิท → ไม่ลอยแน่นอน!
     my.resetAngles();  // รีเซ็ตมุมทั้งหมด
         // คำนวณค่ามุมเริ่มต้น
@@ -3894,7 +3894,7 @@ void fw_gyro(int spl, int spr, float kp,  float distance, int offset)
     float speed_scale = 1.5;  // <-- ใช้ค่าที่คำนวณจากการวัดจริง
 
     my.resetAngles();  // รีเซ็ตมุมทั้งหมด
-    my.reCalibrateGyro();         // calibrate offset ใหม่ (เร็ว ~150 ms)
+    ////my.reCalibrateGyro();         // calibrate offset ใหม่ (เร็ว ~150 ms)
            // รีเซ็ต bias และ low-pass filter สนิท → ไม่ลอยแน่นอน!
     my.resetAngles();  // รีเซ็ตมุมทั้งหมด
     float yaw_offset = my.gyro('z'); 
