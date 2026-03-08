@@ -16,3 +16,50 @@ void set_motor()
     set_delay_f(10);
     
   }
+
+void fw_ch_line(int num)
+  {
+    for(int i=0; i< num; i++)
+      {
+        while(1)
+          {
+            delay(5);      
+            if(read_sensorA(0) < md_sensorA(0)-50 && read_sensorA(7) > md_sensorA(7)-50)
+              {
+                Motor(-5 ,20);
+              }
+            else if(read_sensorA(0) > md_sensorA(0)-50 && read_sensorA(7) < md_sensorA(7)-50)
+              {
+                Motor(20 ,-5);
+              }
+            else if(read_sensorA(0) > md_sensorA(0)-50 && read_sensorA(7) > md_sensorA(7)-50)
+              {          
+                Motor(15 ,15);
+              }
+            else 
+              {
+                Motor(-1 ,-1);
+                break;
+              }      
+          }
+        if(num > 1)
+          {
+            Motor(-15 ,-15);
+            delay(50);
+            while(1)
+              {
+                if(read_sensorA(0) > md_sensorA(0)-50 && read_sensorA(7) > md_sensorA(7)-50)
+                  {
+                    break;
+                  }
+                else
+                  {
+                    Motor(-15 ,-15);
+                  }
+                delay(5);
+              }
+            Motor(1 ,1);
+          }
+      }
+    
+  }
