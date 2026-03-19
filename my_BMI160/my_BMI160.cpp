@@ -33,7 +33,7 @@ bool my_BMI160::begin() {
   }
 
   _wire->begin();
-  _wire->setClock(400000);
+  //_wire->setClock(400000);
 
   // Check chip ID
   _wire->beginTransmission(_address);
