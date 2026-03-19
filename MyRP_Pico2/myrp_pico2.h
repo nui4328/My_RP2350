@@ -153,10 +153,24 @@ void set_speed_turn_fr(int inM, int outM, int delayM )
         rdelaymotor = delayM;
      }
 
+#define I2C_SDA     4
+#define I2C_SCL     5
 void setup_robot() 
   {
-    Serial.begin(9600);
-    Wire.begin(); 
+    Serial.begin(115200); 
+    pinMode(I2C_SDA, OUTPUT);
+    pinMode(I2C_SCL, OUTPUT);
+    digitalWrite(I2C_SDA, HIGH);
+    digitalWrite(I2C_SCL, HIGH);
+    delay(100);
+    for (int i = 0; i < 9; i++) {
+      digitalWrite(I2C_SCL, LOW); delayMicroseconds(5);
+      digitalWrite(I2C_SCL, HIGH); delayMicroseconds(5);
+    }
+
+  Wire.end();
+  delay(800);
+  Wire.begin();
     bat.begin();
     analogReadResolution(12);  
        
