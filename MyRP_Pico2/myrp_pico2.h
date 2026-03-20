@@ -9,6 +9,8 @@ BatteryMonitor bat;
 #include  <my_MCP3008s.h>
 my_MCP3008s adc;
 #include  <EncoderLibrarys.h>
+
+//EncoderLibrarys encoder(22, 18, 11, 12);
 EncoderLibrarys encoder(18, 22, 12, 11);
 // กำหนดพินควบคุมมอเตอร์
 my_BMI160 my; // สร้างอ็อบเจ็กต์ด้วยที่อยู่เริ่มต้น (0x69)
@@ -21,6 +23,8 @@ my_BMI160 my; // สร้างอ็อบเจ็กต์ด้วยที
 #define PWMB 6     // PWM ขวา
 #define BIN1 8
 #define BIN2 7
+
+bool DC_Motors = true;
 //___--------------------------------------------->>
 #define EEPROM_ADDRESS 0x50
 const int numSensors = 8;
@@ -77,6 +81,22 @@ float speed_scale_bw = 1.05; // สมมติ 1 PWM = 0.1 cm/s (ต้อง�
 
 String Freq_motor ;
 
+// ค่าคงที่สำหรับ encoder (ใส่ส่วนบนของไฟล์ .ino หรือใน header file)
+// ============================================================================
+const float WHEEL_CIRCUMFERENCE_CM = 2.0 * 3.141592653589793 * 23.0;  // ≈ 263.8937829 cm
+const int   TICKS_PER_REVOLUTION    = 25;
+const float CM_PER_TICK             = (WHEEL_CIRCUMFERENCE_CM / TICKS_PER_REVOLUTION)/10.0;  // ≈ 2.000 cm/tick
+
+
+// พารามิเตอร์ ramping & ชะลอ (หน่วย cm/s²)
+float ACCELERATION_CM_S2   = 90.0;     // เร่งความเร็ว (ปรับให้ช้าลง = ค่าน้อยลง)
+float DECELERATION_CM_S2   = 90.0;    // ชะลอ (ปรับให้ช้าลง = ค่าน้อยลง)
+float SLOW_DOWN_START_CM   = 15.0;     // เริ่มชะลอเมื่อเหลือระยะนี้ (cm)
+float MIN_SPEED            = slmotor;     // ความเร็วต่ำสุด (ป้องกันมอเตอร์หยุดนิ่ง)
+
+// ≈ 0.19992 cm/tick   (ปรับจากผลทดสอบว่าต้องหาร 10 เพื่อให้ตรงกับความเป็นจริง)
+
+
 
 
 //___--------------------------------------------->>
@@ -91,7 +111,14 @@ void resetAngles()
   }
 void set_Freq(String fr_motor)
   {
-    Freq_motor = fr_motor;
+    if(fr_motor == "DC_Motors" )
+      {
+        DC_Motors = true;
+      }
+    else  
+      {
+         DC_Motors = false;
+      }
   }  
 void distance_scale_fw(float scale)
   {
@@ -173,7 +200,9 @@ void setup_robot()
   Wire.begin();
     bat.begin();
     analogReadResolution(12);  
-       
+    analogWriteResolution(12);
+    encoder.setupEncoder();    //-------------------->> เรียกฟังก์ชัน setupEncoder
+    encoder.resetEncoders();  //--------------------->> ฟังก์ชันรอก   
    // resetAngles();
     pinMode(LED_BUILTIN, OUTPUT);
     pinMode(3, INPUT_PULLUP);
@@ -186,6 +215,16 @@ void setup_robot()
     pinMode(PWMB, OUTPUT);
     pinMode(BIN1, OUTPUT);
     pinMode(BIN2, OUTPUT);
+
+    if(DC_Motors==true)
+      {
+        analogWriteFreq(1000);
+      }    
+    else
+      {
+        analogWriteFreq(20000);
+      }
+    
     //Serial.print( analogRead(26) );   Serial.print( "  " );   Serial.print( analogRead(27) ); Serial.print( "     " );
     //Serial.print(  md_sensorC(0));   Serial.print( "  " );   Serial.println(  md_sensorC(1) ); 
     for(int i = 0; i<2; i++)
@@ -690,60 +729,109 @@ void sw()
   }
 
 ///----------------------------------------------------------------------------------->>>>
-///---------------------------------------------------------------------------------->>>>
-int sl, sr; // ตัวแปรความเร็วสำหรับมอเตอร์ซ้ายและขวา
+#define VMAX 12.6
+#define VMIN 7.4
+#define VNOM 11.75
 
-// ฟังก์ชันควบคุมมอเตอร์ซ้าย/ขวา
-void Motor(int pwmL, int pwmR) {
-   // ตั้งความละเอียด PWM เป็น 12 บิต (0–4095)
-    analogWriteResolution(12);
-    // ตั้งความถี่ PWM เป็น 20kHz (ลดเสียงรบกวนมอเตอร์)
-    if(Freq_motor == "DC_Motors")
-      {
-        analogWriteFreq(1000);
-      }
-    else  
-      {
-        analogWriteFreq(20000);
-      }
-     delayMicroseconds(50); 
-   
-  // แปลงค่าจาก -100..100 ให้เป็น 0..4095
-  int pwmValueL = map(abs(pwmL), 0, 100, 0, 4095);
-  int pwmValueR = map(abs(pwmR), 0, 100, 0, 4095);
+#define BATTERY_INTERVAL 100
 
-  // มอเตอร์ซ้าย
+float Vbat = -1.0;
+unsigned long lastBatteryRead = 0;
+
+//--------------------------------
+// อ่านค่าแบต (optional)
+//--------------------------------
+void updateBattery()
+{
+  unsigned long now = millis();
+
+  if(now - lastBatteryRead >= BATTERY_INTERVAL)
+  {
+    float newV = bat.readBatteryVoltage();
+
+    if(newV > 5.0 && newV < 15.0)
+    {
+      if(Vbat < 0) Vbat = newV;
+      else Vbat = 0.8 * Vbat + 0.2 * newV; // filter
+    }
+
+    lastBatteryRead = now;
+  }
+}
+
+//--------------------------------
+// Motor Control
+//--------------------------------
+void Motor(int pwmL, int pwmR)
+{
+  float scale = 1.0;
+  bool batteryUsed = false;
+
+  // ตรวจสอบว่ามีค่าแบตหรือไม่
+  if(Vbat >= VMIN && Vbat <= VMAX)
+  {
+    scale = pow(VNOM / Vbat, 0.95);
+    batteryUsed = true;
+  }
+
+  int pwmValueL = map(abs(pwmL),0,100,0,4095);
+  int pwmValueR = map(abs(pwmR),0,100,0,4095);
+
+  pwmValueL = constrain((int)(pwmValueL * scale),0,4095);
+  pwmValueR = constrain((int)(pwmValueR * scale),0,4095);
+
+  // LEFT MOTOR
   if (pwmL > 0) {
-    digitalWrite(AIN1, HIGH);
-    digitalWrite(AIN2, LOW);
-  } else if (pwmL < 0) {
-    digitalWrite(AIN1, LOW);
-    digitalWrite(AIN2, HIGH);
-  } else {
-    digitalWrite(AIN1, LOW);
-    digitalWrite(AIN2, LOW);
+    digitalWrite(AIN1,HIGH);
+    digitalWrite(AIN2,LOW);
+  }
+  else if (pwmL < 0) {
+    digitalWrite(AIN1,LOW);
+    digitalWrite(AIN2,HIGH);
+  }
+  else {
+    digitalWrite(AIN1,LOW);
+    digitalWrite(AIN2,LOW);
     pwmValueL = 0;
   }
 
-  // มอเตอร์ขวา
+  // RIGHT MOTOR
   if (pwmR > 0) {
-    digitalWrite(BIN1, HIGH);
-    digitalWrite(BIN2, LOW);
-  } else if (pwmR < 0) {
-    digitalWrite(BIN1, LOW);
-    digitalWrite(BIN2, HIGH);
-  } else {
-    digitalWrite(BIN1, LOW);
-    digitalWrite(BIN2, LOW);
+    digitalWrite(BIN1,HIGH);
+    digitalWrite(BIN2,LOW);
+  }
+  else if (pwmR < 0) {
+    digitalWrite(BIN1,LOW);
+    digitalWrite(BIN2,HIGH);
+  }
+  else {
+    digitalWrite(BIN1,LOW);
+    digitalWrite(BIN2,LOW);
     pwmValueR = 0;
   }
 
-  // ส่งค่า PWM (0–4095)
-  analogWrite(PWMA, pwmValueL);
-  analogWrite(PWMB, pwmValueR);
-}
+  analogWrite(PWMA,pwmValueL);
+  analogWrite(PWMB,pwmValueR);
 
-//-------------------------------------------------------------------------------------->>ควบคุมมอเตอร์
+  //--------------------------------
+  // แสดงสถานะแบต
+  //--------------------------------
+  if(batteryUsed)
+  {
+    Serial.print("BATTERY OK  V=");
+    Serial.print(Vbat,2);
+  }
+  else
+  {
+    Serial.print("NO BATTERY");
+  }
+
+  Serial.print("  PWM=");
+  Serial.print(pwmValueL);
+  Serial.print(",");
+  Serial.println(pwmValueR);
+}
+//--------------------------------
 
 //-------------------------------------------------------------------------------------->>ควบคุมserv
 
@@ -1128,6 +1216,7 @@ void fws(int sl, int sr, float kp)
     // Soft start เพิ่มความเร็วจนถึงเป้าหมาย
     while (current_speed < target_speed) 
     {
+       updateBattery();
         errors = error_A();
         P = errors;
         D = errors - previous_error;
@@ -2062,46 +2151,63 @@ void fline(int spl, int spr, float kp, String distance, char nfc, char splr, int
         previous_error = errors;
         PID_output = (kp * P) + (0.000001 * I) + (kd_f * D);
         Motor(spl - PID_output, spr + PID_output);       
-        if (distance == "a0") 
+        if (distance == "FL" || distance == "fl" || distance == "a0" ) 
           {
-            if(read_sensorA(0) < md_sensorA(0)
-              || read_sensorA(1) > md_sensorA(1) && read_sensorA(2) > md_sensorA(2) && read_sensorA(3) > md_sensorA(3) 
-                && read_sensorA(4) > md_sensorA(4) && read_sensorA(5) > md_sensorA(5) && read_sensorA(6) > md_sensorA(6))
+            if(read_sensorA(0) < md_sensorA(0) )
               {
                 break;
               }
           }
-        else if (distance == "a1") 
+        else if (distance == "FR" || distance == "fr" || distance == "a7" ) 
           {
-            if(read_sensorA(1) < md_sensorA(1))
+            if(read_sensorA(7) < md_sensorA(7))
               {
                 break;
               }
           }
-        else if (distance == "a6") 
+         else if (distance == "BL" || distance == "bl" || distance == "b7" ) 
           {
-            if(read_sensorA(6) < md_sensorA(6))
+            if(read_sensorB(7) < md_sensorB(7))
               {
                 break;
               }
           }
-        else if (distance == "a7") 
+        else if (distance == "BR" || distance == "br" || distance == "b0" ) 
           {
-            if(read_sensorA(7) < md_sensorA(7)
-              || read_sensorA(1) > md_sensorA(1) && read_sensorA(2) > md_sensorA(2) && read_sensorA(3) > md_sensorA(3) 
-                && read_sensorA(4) > md_sensorA(4) && read_sensorA(5) > md_sensorA(5) && read_sensorA(6) > md_sensorA(6))
+            if(read_sensorB(0) < md_sensorB(0))
               {
                 break;
               }
           }
-        else if (distance == "a07" || distance == "a70") 
+        else if (distance == "CL" || distance == "cl" || distance == "27" ) 
+          {
+            if(analogRead(27) < (sensorMinC[1]+md_sensorC(1))/2)
+              {
+                Motor(-spl, -spr);
+                delay(10);
+                Motor(-1, -1);
+                break;
+              }
+          }
+        else if (distance == "CR" || distance == "cr" || distance == "26" ) 
+          {
+            if(analogRead(26) < (sensorMinC[0]+md_sensorC(0))/2)
+              {
+                Motor(-spl, -spr);
+                delay(10);
+                Motor(-1, -1);              
+                break;
+              }
+          }
+        
+        else if (distance == "a07" || distance == "a70" || distance == "FRL"|| distance == "frl" || distance == "FLR"|| distance == "flr") 
           {
             if(read_sensorA(7) < md_sensorA(7) && read_sensorA(0) < md_sensorA(0))
               {
                 break;
               }
           }
-        delayMicroseconds(50);
+        delayMicroseconds(60);
      }
     
     _line:
@@ -2987,43 +3093,70 @@ void bline(int spl, int spr, float kp, String distance, char nfc, char splr, int
         PID_output = (kp * P) + (0.00005 * I) + (kd_f * D);
         Motor(-(spl + PID_output), -(spr - PID_output)); // ถอยหลัง
         
-        if (distance == "b0") 
+        if (distance == "FL" || distance == "fl" || distance == "a0" ) 
           {
-            if(read_sensorB(0) < md_sensorB(0))
+            if(read_sensorA(0) < md_sensorA(0) )
               {
                 break;
               }
           }
-        else if (distance == "b1") 
+        else if (distance == "FR" || distance == "fr" || distance == "a7" ) 
           {
-            if(read_sensorB(1) < md_sensorB(1))
+            if(read_sensorA(7) < md_sensorA(7))
               {
                 break;
               }
           }
-        else if (distance == "b6") 
-          {
-            if(read_sensorB(6) < md_sensorB(6))
-              {
-                break;
-              }
-          }
-        else if (distance == "b7") 
+         else if (distance == "BL" || distance == "bl" || distance == "b7" ) 
           {
             if(read_sensorB(7) < md_sensorB(7))
               {
                 break;
               }
           }
-        else if (distance == "b07" || distance == "b70") 
+        else if (distance == "BR" || distance == "br" || distance == "b0" ) 
+          {
+            if(read_sensorB(0) < md_sensorB(0))
+              {
+                break;
+              }
+          }
+         else if (distance == "CL" || distance == "cl" || distance == "27" ) 
+          {
+            if(analogRead(27) < (sensorMinC[1]+md_sensorC(1))/2)
+              {
+                Motor(spl, spr);
+                delay(10);
+                Motor(-1, -1);
+                break;
+              }
+          }
+        else if (distance == "CR" || distance == "cr" || distance == "26" ) 
+          {
+            if(analogRead(26) < (sensorMinC[0]+md_sensorC(0))/2)
+              {
+                Motor(spl, spr);
+                delay(10);
+                Motor(-1, -1);
+                break;
+              }
+          }
+        else if (distance == "b07" || distance == "b70" || distance == "BRL"|| distance == "brl" || distance == "BLR"|| distance == "blr") 
           {
             if(read_sensorB(7) < md_sensorB(7) && read_sensorB(0) < md_sensorB(0))
               {
                 break;
               }
           }
-        delayMicroseconds(100);
-        Serial.println(errors);
+        else if (distance == "a07" || distance == "a70" || distance == "FRL"|| distance == "frl" || distance == "FLR"|| distance == "flr") 
+          {
+            if(read_sensorA(7) < md_sensorA(7) && read_sensorA(0) < md_sensorA(0))
+              {
+                break;
+              }
+          }
+        delayMicroseconds(60);
+        //Serial.println(errors);
 
         
     }
