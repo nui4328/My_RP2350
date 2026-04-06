@@ -1,9 +1,0 @@
-MyRP_ESP32/
-├── library.properties
-├── src/
-│   ├── MyRP_ESP32.h          ← Header ที่ผู้ใช้ #include <MyRP_ESP32.h>
-│   └── esp32s3/              ← โฟลเดอร์สำหรับ ESP32-S3 (สำคัญมาก)
-│       └── libMyRP_ESP32.a   ← ไฟล์ static library (ต้องมีคำนำหน้า "lib")
-├── examples/
-│   └── MyRP_esp32/
-│       └── MyRP_esp32.ino
