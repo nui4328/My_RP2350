@@ -1,0 +1,10 @@
+MyRP_Pico2/
+├── library.properties
+├── src/
+│   ├── MyRP_Pico2.h           ← วางไฟล์ .h ที่นี่
+│   └── cortex-m33/
+│       └── softfp/
+│           └── libMyRP_Pico2.a     ← วางไฟล์ .a ที่นี่
+├── examples/
+│   └── MyRP_Pico2/
+│       └── MyRP_Pico2.ino
