@@ -1,0 +1,8 @@
+MyRP_Pico2/
+├── library.properties
+├── src/
+│   ├── MyRP_Pico2.h
+│   └── MyRP_Pico2.cpp
+├── examples/
+│   └── MyRP_Pico2_Example/
+│       └── MyRP_Pico2_Example.ino
