@@ -1,78 +1,7 @@
 #include "PiperPico2.h"
 
-#define PCA9685_MODE1      0x00
-#define PCA9685_PRESCALE   0xFE
-
-MyPCA9685::MyPCA9685(uint8_t addr) : _addr(addr) {}
-
-void MyPCA9685::write8(uint8_t reg, uint8_t val) {
-    Wire.beginTransmission(_addr);
-    Wire.write(reg);
-    Wire.write(val);
-    Wire.endTransmission();
-}
-
-uint8_t MyPCA9685::read8(uint8_t reg) {
-    Wire.beginTransmission(_addr);
-    Wire.write(reg);
-    Wire.endTransmission();
-    Wire.requestFrom(_addr, (uint8_t)1);
-    if (Wire.available()) return Wire.read();
-    return 0;
-}
-
-void MyPCA9685::begin() {
-    write8(PCA9685_MODE1, 0x00);
-    delay(10);
-
-    // prescale เดิมถูกแทนที่ด้วย setPWMFreq(50) ใน initPWM แล้ว
-    // ถ้าต้องการค่า default สามารถคงไว้ แต่แนะนำใช้ setPWMFreq
-}
-
-void MyPCA9685::setPWMFreq(uint16_t freq) {
-    // คำนวณ prescale สำหรับ internal oscillator 25 MHz
-    // freq ควรอยู่ระหว่าง 40-1000 Hz (สำหรับ servo ใช้ 50-60 Hz)
-    if (freq < 40) freq = 40;
-    if (freq > 1000) freq = 1000;
-
-    float prescaleval = 25000000.0f;  // 25 MHz
-    prescaleval /= 4096.0f;
-    prescaleval /= (float)freq;
-    prescaleval -= 1.0f;
-    uint8_t prescale = (uint8_t)(prescaleval + 0.5f);  // round to nearest
-
-    uint8_t oldmode = read8(PCA9685_MODE1);
-    write8(PCA9685_MODE1, (oldmode & 0x7F) | 0x10);  // sleep mode
-    delay(5);
-    write8(PCA9685_PRESCALE, prescale);
-    delay(5);
-    write8(PCA9685_MODE1, oldmode);                  // wake up this way (datasheet recommended)
-    delay(5);
-    write8(PCA9685_MODE1, oldmode | 0xA1);           // restart + enable auto-increment
-}
-
-void MyPCA9685::setPWM(uint8_t channel, uint16_t on, uint16_t off) {
-    uint8_t reg = 0x06 + 4 * channel;
-    Wire.beginTransmission(_addr);
-    Wire.write(reg);
-    Wire.write(on & 0xFF);
-    Wire.write(on >> 8);
-    Wire.write(off & 0xFF);
-    Wire.write(off >> 8);
-    Wire.endTransmission();
-}
-
-void MyPCA9685::setPin(uint8_t channel, uint16_t val, bool invert) {
-    if (val > 4095) val = 4095;
-    if (invert) {
-        setPWM(channel, 4095 - val, 0);
-    } else {
-        setPWM(channel, 0, val);
-    }
-}
-
 PiperPico2::PiperPico2()
-  : _pwm(MyPCA9685(0x40)),
+  : _pwm(Adafruit_PWMServoDriver(0x40)),  // I2C address 0x40 (default ของ PCA9685)
     _display(128, 32, &Wire, -1),
     _enc1(20, 19, 21, 22),
     _enc2(16, 17, 10, 18)
@@ -85,15 +14,42 @@ PiperPico2::PiperPico2()
 
 bool PiperPico2::begin() {
     Serial.begin(115200);
-    delay(1800);  // หน่วงเพื่อ stability ของ I2C bus
+    delay(500);                     // ลดจาก 1800 → พอสำหรับ Serial stability
+
+    // === I2C Bus Recovery (เคลียร์ bus ที่อาจค้าง) ===
     Wire.setSDA(4);
     Wire.setSCL(5);
-    Wire.begin();
-    delay(50);
+    
+    // ตั้งเป็น GPIO ชั่วคราวเพื่อ clock pulses
+    pinMode(4, OUTPUT);  // SDA
+    pinMode(5, OUTPUT);  // SCL
+    digitalWrite(4, HIGH);
+    digitalWrite(5, HIGH);
+    delay(10);
 
+    // ส่ง 9-10 clock pulses เพื่อเคลียร์ slave ที่อาจค้าง
+    for (int i = 0; i < 10; i++) {
+        digitalWrite(5, LOW);
+        delayMicroseconds(5);
+        digitalWrite(5, HIGH);
+        delayMicroseconds(5);
+    }
+
+    // ปล่อย bus เป็น input (pull-up จะดึง HIGH)
+    pinMode(4, INPUT);
+    pinMode(5, INPUT);
+    delay(10);
+
+    // เริ่ม I2C ใหม่
+    Wire.begin();
+    Wire.setClock(100000);        // แนะนำ 800 kHz (เสถียรกว่า 1 MHz ในทางปฏิบัติ)
+
+    // === เริ่มต้นส่วนอื่น ๆ ===
     initPins();
-    initPWM();
+    initPWM();      // ต้องเรียกหลัง Wire.setClock แล้ว
     initOLED();
+
+    // เสียงเริ่มต้น
     playTone(2200, 120); delay(30);
     playTone(2500, 120); delay(30);
     playTone(3000, 180);
@@ -124,20 +80,24 @@ void PiperPico2::initPins() {
 }
 
 void PiperPico2::initPWM() {
-    _pwm.begin();
-
-    // สำคัญมาก: ตั้งความถี่ PWM เป็น 50 Hz สำหรับเซอร์โว (มาตรฐาน)
-    // ถ้า servo ของคุณชอบ 60 Hz สามารถเปลี่ยนเป็น 60 ได้
-    _pwm.setPWMFreq(50);
-
-    for (uint8_t i = 0; i < 5; i++) {
+    _pwm.begin();                     // เริ่มไลบรารี Adafruit
+    Wire.setClock(100000);            // เริ่มที่ 400 kHz (เสถียร + เร็วพอสมควร)
+    // ถ้ายังมี noise หรือ servo สั่น → ลดเหลือ 200000 หรือ 100000
+    _pwm.setPWMFreq(61);              // ← เปลี่ยนเป็น 50 Hz (มาตรฐานสำหรับ servo analog)
+    delay(3);                        // ให้ PCA9685 ปรับความถี่เสร็จก่อน
+    for (uint8_t i = 0; i < 6; i++) {
         uint8_t ch = SERVO_CHANNELS[i];
-        _pwm.setPWM(ch, 0, 0);  // ปิด servo เริ่มต้น (หรือ set เป็นกลาง: map(90,0,180,SERVO_MIN,SERVO_MAX))
+        _pwm.setPWM(ch, 0, 4096);     // Full OFF → ปิด servo ถูกต้อง
     }
 }
 
-// ส่วนที่เหลือเหมือนเดิม (initOLED, motor, setServo, playTone, adcRead, calibrate ฯลฯ)
-// คุณสามารถ copy ส่วนเหล่านี้จากโค้ดเดิมของคุณมา paste ต่อจากนี้
+void PiperPico2::setservo(uint8_t logicalChannel, int angle) {
+    if (logicalChannel > 6) return;
+    uint8_t realChannel = SERVO_CHANNELS[logicalChannel];
+    angle = constrain(angle, 0, 180);
+    uint16_t pulse = map(angle, 0, 180, SERVO_MIN, SERVO_MAX);
+    _pwm.setPWM(realChannel, 0, pulse);
+}
 
 void PiperPico2::initOLED() {
     if (!_display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
@@ -159,6 +119,7 @@ void PiperPico2::setMotorPWMFrequency(uint32_t freqHz) {
     }
     analogWriteFreq(freqHz);
 }
+
 
 void PiperPico2::motor(char id, int speed) {
     speed = constrain(speed, -100, 100);
@@ -192,13 +153,13 @@ void PiperPico2::motor(char id, int speed) {
     }
 
     analogWrite(pwm_pin, pwmDuty);
-    _pwm.setPin(in1_ch, in1 ? 4095 : 0);
-    _pwm.setPin(in2_ch, in2 ? 4095 : 0);
+    _pwm.setPWM(in1_ch, 0, in1 ? 4095 : 0);
+    _pwm.setPWM(in2_ch, 0, in2 ? 4095 : 0);
 }
 
 uint8_t PiperPico2::getMotorIn1(char id) {
     switch (id) {
-        case 'A': return 0;
+        case 'A': return 1;
         case 'B': return 5;
         case 'C': return 2;
         case 'D': return 6;
@@ -208,7 +169,7 @@ uint8_t PiperPico2::getMotorIn1(char id) {
 
 uint8_t PiperPico2::getMotorIn2(char id) {
     switch (id) {
-        case 'A': return 1;
+        case 'A': return 0;
         case 'B': return 4;
         case 'C': return 3;
         case 'D': return 7;
@@ -216,15 +177,7 @@ uint8_t PiperPico2::getMotorIn2(char id) {
     }
 }
 
-void PiperPico2::setServo(uint8_t logicalChannel, int angle) {
-    if (logicalChannel > 4) return;
 
-    uint8_t realChannel = SERVO_CHANNELS[logicalChannel];
-
-    angle = constrain(angle, 0, 180);
-    uint16_t pulse = map(angle, 0, 180, SERVO_MIN, SERVO_MAX);
-    _pwm.setPWM(realChannel, 0, pulse);
-}
 
 void PiperPico2::playTone(uint16_t freq, uint16_t duration_ms) {
     if (freq == 0 || duration_ms == 0) return;
@@ -269,8 +222,7 @@ uint16_t PiperPico2::adcMax(uint8_t sensor) {
 }
 
 uint16_t PiperPico2::adcMD(uint8_t sensor) {
-
-    return (adcMin(sensor) + adcMax(sensor))/2;
+    return (adcMin(sensor) + adcMax(sensor)) / 2;
 }
 
 uint16_t PiperPico2::readLine(uint8_t sensor) {
@@ -301,7 +253,7 @@ void PiperPico2::calibrate() {
     }
 
     unsigned long start = millis();
-    unsigned long lastToneTime = 0;  // เวลาที่เล่นเสียงครั้งล่าสุด
+    unsigned long lastToneTime = 0;
 
     while (millis() - start < 10000) {
         for (int i = 0; i < NUM_SENSORS; i++) {
@@ -310,9 +262,8 @@ void PiperPico2::calibrate() {
             if (val > _sensorMax[i]) _sensorMax[i] = val;
         }
 
-        // แทรกเสียงติ๊งเบา ๆ ทุก 1.5 วินาที (1500 ms)
         if (millis() - lastToneTime >= 1000) {
-            playTone(1200, 60);  // เสียงเบา 1200 Hz นาน 60 ms
+            playTone(1200, 60);
             lastToneTime = millis();
         }
 
@@ -321,7 +272,6 @@ void PiperPico2::calibrate() {
 
     saveCalibration();
     
-    // เสียงยืนยันจบการ calibrate (เหมือนเดิม)
     playTone(2500, 100); delay(100);
     playTone(2500, 100); delay(300);
     playTone(3000, 500); delay(100);
@@ -408,7 +358,7 @@ void PiperPico2::showVoltageUntilButton() {
 
 float PiperPico2::knopRead() {
     uint16_t knop_value = map(adcRead(10), 0, 2800, 0, 1203);
-    return knop_value ;
+    return knop_value;
 }
 
 void PiperPico2::resetEncoders() {
