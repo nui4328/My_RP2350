@@ -1,0 +1,8 @@
+BNO055_Custom/
+├── library.properties
+├── src/
+│   ├── BNO055_Custom.h
+│   └── BNO055_Custom.cpp
+└── examples/
+    ├── ESP32_S3.ino
+    └── RP2040.ino
