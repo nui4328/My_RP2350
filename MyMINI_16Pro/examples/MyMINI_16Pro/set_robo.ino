@@ -7,7 +7,7 @@ void robot_setup()
     const uint8_t smoothingDivisor = 4;     // กรองข้ามเฟรม: 1=ปิด, 2/4/8=มากขึ้น
     Serial.begin(115200);                   // ความเร็ว Serial Monitor (baud)
     select_motor_driver(MotorDriverType::DRV8874);  // เลือกไดรเวอร์ก่อนเริ่มหุ่นยนต์
-    const uint8_t bno055Address = 0x28;     // เลือก 0x29 หรือ 0x28 ตามขา ADDR ของ BNO055
+    const uint8_t bno055Address = 0x29;     // เลือก 0x29 หรือ 0x28 ตามขา ADDR ของ BNO055
     if (!set_bno055_address(bno055Address)) {
       Serial.println(F("BNO055 address must be 0x28 or 0x29 before robot_begin()"));
       for (;;) delay(1000);
@@ -44,7 +44,7 @@ void robot_setup()
     set_gyro_kd(0.00850f, 0.0125f);    // Kd ของ fw_gyro, bw_gyro ตามลำดับ
     set_rotate_fallback(300, 550, 50); // ใช้เฉพาะ rotate_spin/pivot เมื่อ gyro ใช้ไม่ได้; turn_gyro จะหยุดพร้อมแจ้งข้อผิดพลาด
     set_turn_approach(25, 25, 15);     // สปีดเข้าหาเส้นหลังจบด้วยเซนเซอร์/ระยะทาง, กำลังเบรกสวน
-    set_turn_center_brake(25, 10, 20, 60);  // tcl/tcr: เบรกสวนหลังเดินหน้า 25/10 ms, หลังถอย 20/60 ms
+    set_turn_center_brake(25, 20, 20, 60);  // tcl/tcr: เบรกสวนหลังเดินหน้า 25/10 ms, หลังถอย 20/60 ms
 
     // กำลังล้อขณะหมุน: (ซ้าย, ขวา) เป็นร้อยละของสปีดที่สั่ง; ค่าลบคือถอย
     set_turn_motor(TurnMode::fl, -15, 100);   // fl: ซ้ายถอยเบา ขวาเดินหน้า
